@@ -9,8 +9,7 @@ import readfile
 from greedsolve import GreedSolve
 from simulatedannealing import Simulatedannealing
 
-
-def get_cost(solution, veh_type, if_write, run_t=289.3):
+def get_cost(solution, all_vehicle_type, if_write, run_t=289.3):
     """Given the solution saved in list, calculate the total cost of the solution.
     Write the solution to local in the required format."""
 
@@ -18,8 +17,8 @@ def get_cost(solution, veh_type, if_write, run_t=289.3):
     result = [['trans_code', 'vehicle_type', 'dist_seq', 'distribute_lea_tm', 'distribute_arr_tm', 'distance', 'trans_cost', 'charge_cost', 'wait_cost', 'fixed_use_cost', 'total_cost', 'charge_cnt']]
     total_cost = 0
     vehicle_code = 0
-    for k, veh in enumerate(solution):
-        if veh_type[k] == 1:
+    for k, vehicle in enumerate(solution):
+        if all_vehicle_type[k] == 1:
             trans0 = small_car_capacity[4]
             fix0 = small_car_capacity[5]
         else:
@@ -30,9 +29,9 @@ def get_cost(solution, veh_type, if_write, run_t=289.3):
         route = [0] * len(result[0])
         vehicle_code += 1
         route[0] = 'DP' + str(vehicle_code ).zfill(4)  # vehicle name
-        route[1] = veh_type[k]  # vehicle type
+        route[1] = all_vehicle_type[k]  # vehicle type
         route_ele = []
-        for ele in veh:
+        for ele in vehicle:
             if ele == 0:
                 route_ele.append(str(ele))
             else:
@@ -40,46 +39,46 @@ def get_cost(solution, veh_type, if_write, run_t=289.3):
         route[2] = ';'.join(route_ele)  # route
 
         total_cost += fix0
-        total_cost += distance_matrix[0, veh[1]] * trans0
-        if time_matrix[0, veh[1]] + start_t <= consumer_constraint[veh[1]][3]:
-            t = consumer_constraint[veh[1]][3] + oper_t
-            time_out = int(consumer_constraint[veh[1]][3] - time_matrix[0, veh[1]])
+        total_cost += distance_matrix[0, vehicle[1]] * trans0
+        if time_matrix[0, vehicle[1]] + earliest_start_time <= consumer_constraint[vehicle[1]][3]:
+            t = consumer_constraint[vehicle[1]][3] + operation_time
+            time_out = int(consumer_constraint[vehicle[1]][3] - time_matrix[0, vehicle[1]])
             route[3] = str(time_out / 60) + ':' + str(time_out % 60).zfill(2)  # vehicle out time
         else:
 
-            t = time_matrix[0, veh[1]] + start_t + oper_t
-            route[3] = str(start_t / 60) + ':' + str(start_t % 60).zfill(2)  # vehicle out time
+            t = time_matrix[0, vehicle[1]] + earliest_start_time + operation_time
+            route[3] = str(earliest_start_time / 60) + ':' + str(earliest_start_time % 60).zfill(2)  # vehicle out time
         total_wait_cost = 0
-        for i in range(2, len(veh)-1):  # can not wait at the first 2 points
-            total_cost += (distance_matrix[veh[i - 1], veh[i]] * trans0)
-            if consumer_constraint[veh[i]][0] == 4:
-                total_cost += charg_cost0
-            wait_t = consumer_constraint[veh[i]][3] - (t + time_matrix[veh[i - 1], veh[i]])
+        for i in range(2, len(vehicle)-1):  # can not wait at the first 2 points
+            total_cost += (distance_matrix[vehicle[i - 1], vehicle[i]] * trans0)
+            if consumer_constraint[vehicle[i]][0] == 4:
+                total_cost += charge_one_cost
+            wait_t = consumer_constraint[vehicle[i]][3] - (t + time_matrix[vehicle[i - 1], vehicle[i]])
             if wait_t > 0:
                 # print veh[i-1], veh[i], wait_t
-                total_cost += (wait_t/60. * wait_cost0)
-                total_wait_cost += (wait_t/60. * wait_cost0)
-                t = consumer_constraint[veh[i]][3] + oper_t
+                total_cost += (wait_t / 60. * wait_one_hour_cost)
+                total_wait_cost += (wait_t / 60. * wait_one_hour_cost)
+                t = consumer_constraint[vehicle[i]][3] + operation_time
             else:
-                if veh[i] == 0:
-                    t += (time_matrix[veh[i - 1], veh[i]] + depot_t)
+                if vehicle[i] == 0:
+                    t += (time_matrix[vehicle[i - 1], vehicle[i]] + every_round_stay_cost)
                 else:
-                    t += (time_matrix[veh[i - 1], veh[i]] + oper_t)
-            if veh[i] == 0:  # get back to the depot and will depart again, wait cost is 1hour
-                total_cost += wait_cost0
-                total_wait_cost += wait_cost0
+                    t += (time_matrix[vehicle[i - 1], vehicle[i]] + operation_time)
+            if vehicle[i] == 0:  # get back to the depot and will depart again, wait cost is 1hour
+                total_cost += wait_one_hour_cost
+                total_wait_cost += wait_one_hour_cost
             # print veh[i], str(int(t) / 60) + ':' + str(int(t) % 60).zfill(2)
 
 
-        in_time = int(t + time_matrix[veh[-2], 0])
+        in_time = int(t + time_matrix[vehicle[-2], 0])
         route[4] = str(in_time / 60) + ':' + str(in_time % 60).zfill(2)  # vehicle back time
         total_dist = 0
         total_charg_cost = 0
         total_charg_cnt = 0
-        for j in range(len(veh) - 1):
-            total_dist += distance_matrix[veh[j], veh[j + 1]]
-            if veh[j] >= consumer_number:
-                total_charg_cost += charg_cost0
+        for j in range(len(vehicle) - 1):
+            total_dist += distance_matrix[vehicle[j], vehicle[j + 1]]
+            if vehicle[j] >= consumer_number:
+                total_charg_cost += charge_one_cost
                 total_charg_cnt += 1
         route[5] = int(total_dist)  # total distance
         route[6] = round(route[5] * trans0, 2)  # transfer cost
@@ -91,7 +90,7 @@ def get_cost(solution, veh_type, if_write, run_t=289.3):
 
         result.append(route)
         # print route
-        total_cost += distance_matrix[veh[-2], 0] * trans0
+        total_cost += distance_matrix[vehicle[-2], 0] * trans0
         # print 'Last leave time: ', int(t) / 60, ':', int(t) % 60
         # print 'total distances: ', route[5]
 
@@ -149,7 +148,7 @@ def vehicle_type_adjust(solution):
     return type_list
 
 if __name__ == '__main__':
-    t0 = time.time()
+    start_time = time.time()
     max_run_time = 300
 
     file_name = '1_1601'
@@ -164,9 +163,9 @@ if __name__ == '__main__':
     for i in range(consumer_number):
         charge_distance = copy.deepcopy(distance_matrix[i, :])
         charge_distance[1:consumer_number] = 100000
-        min_dist = np.where(charge_distance == np.min(charge_distance))
-        near_id = min_dist[0][0]
-        consumer_nearest_charge.append(near_id)
+        min_distance = np.where(charge_distance == np.min(charge_distance))
+        near_charge_id = min_distance[0][0]
+        consumer_nearest_charge.append(near_charge_id)
 
     # [veh_type, weight, volume, max_distance, trs_cost, fix_cost]
     small_car_capacity = [1, 2.0, 12, 100000, 0.012, 200]
@@ -174,35 +173,35 @@ if __name__ == '__main__':
     # [veh_type, weight, volume, max_distance, trs_cost, fix_cost]
     big_car_capacity = [2, 2.5, 16, 120000, 0.014, 300]
 
-    charg_cost0 = 0.5 * 100  # charge cost
-    wait_cost0 = 24.0  # waiting cost: 24 yuan/h
-    charg_t = 30  # charge time at charge station
-    depot_t = 60  # stay time at depot after every round
-    oper_t = 30  # operation time at each customer
-    start_t = 60 * 8  # earliest start time of a vehicle
-    alp, bet, gam = 0.64, 0.23, 0.13  # weight of t_ij, h_ij and v_ij of Time-oriented Nearest-Neighbor
-    # alp, bet, gam = nn_para[f_i]
-    small_veh = 255
-    greedsolve = GreedSolve(small_veh, consumer_number, time_matrix
-                            , distance_matrix, oper_t, charg_t
-                            , copy, consumer_constraint, depot_t, consumer_nearest_charge)
-    output = greedsolve.lns_initial()
-    veh_typ = vehicle_type_adjust(output)
-    cost = get_cost(solution=output, veh_type=veh_typ, if_write=True)
+    charge_one_cost = 0.5 * 100  # charge cost
+    wait_one_hour_cost = 24.0  # waiting cost: 24 yuan/h
+    charge_time = 30  # charge time at charge station
+    every_round_stay_cost = 60  # stay time at depot after every round
+    operation_time = 30  # operation time at each customer
+    earliest_start_time = 60 * 8  # earliest start time of a vehicle
 
-    simulatedannealing = Simulatedannealing(small_veh, consumer_number, time_matrix
-                                            , distance_matrix, oper_t, charg_t
-                                            , copy, consumer_constraint, depot_t
+    small_vehicle_number = 255
+    greedsolve = GreedSolve(small_vehicle_number, consumer_number, time_matrix
+                            , distance_matrix, operation_time, charge_time
+                            , copy, consumer_constraint, every_round_stay_cost,
+                            consumer_nearest_charge)
+    greed_output = greedsolve.greed_solve()
+    vehicle_type = vehicle_type_adjust(greed_output)
+    greed_cost = get_cost(solution=greed_output, all_vehicle_type=vehicle_type, if_write=True)
+
+    simulatedannealing = Simulatedannealing(small_vehicle_number, consumer_number, time_matrix
+                                            , distance_matrix, operation_time, charge_time
+                                            , copy, consumer_constraint, every_round_stay_cost
                                             , consumer_nearest_charge)
-    new_output, cost_t = simulatedannealing.simulated_annealing(sol_in=output,
-                                                                veh_type_in=veh_typ,
-                                                                cost_in=cost)
+    new_output, cost_t = simulatedannealing.simulated_annealing(sol_in=greed_output,
+                                                                veh_type_in=vehicle_type,
+                                                                cost_in=greed_cost)
     veh_typ1 = vehicle_type_adjust(new_output)
 
     new_cost = get_cost(solution=new_output,
-                        veh_type=veh_typ1,
+                        all_vehicle_type=veh_typ1,
                         if_write=True)
     print('\nTotal used vehicle number: ', len(new_output))
     print('Total cost is: ', new_cost)
-    print ('\nTotal used vehicle number: ', len(output))
-    print ('Total cost is: ', cost)
+    print ('\nTotal used vehicle number: ', len(greed_output))
+    print ('Total cost is: ', greed_cost)
